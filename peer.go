@@ -5,8 +5,17 @@ import (
 	"log"
 )
 
-func Q2P(ip string, port int) error {
-	listener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(ip), Port: port})
+type q2pParams_T struct {
+	IP string
+	Port int
+	RHAddr string
+	NetworkIdentify string
+}
+
+var remoteHostAddresses = make([]string, 0, 16)
+
+func Q2P(params *q2pParams_T) error {
+	listener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(params.IP), Port: params.Port})
 	if err != nil {
 		return err
 	}
@@ -14,6 +23,12 @@ func Q2P(ip string, port int) error {
 	log.Println(listener.LocalAddr().String())
 
 	go read(listener)
+
+	if params.RHAddr != "" {
+		joinOne(listener, params.RHAddr, params.NetworkIdentify)
+	}
+
+	join(listener, params.NetworkIdentify)
 
 	return nil
 }
@@ -37,14 +52,26 @@ func read(conn *net.UDPConn) {
 	}
 }
 
-func join(hostAddrs []string, networkIdentify string) {
-	for k, addr := range hostAddrs {
+func joinOne(conn *net.UDPConn, rHAddr, networkIdentify string) {
+	remoteAddr, err := net.ResolveUDPAddr("udp", rHAddr)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = conn.WriteToUDP([]byte(networkIdentify), remoteAddr)
+	if err != nil {
+		log.Println(err)
+	}
+}
+
+func join(conn *net.UDPConn, networkIdentify string) {
+	for _, addr := range remoteHostAddresses {
 		remoteAddr, err := net.ResolveUDPAddr("udp", addr)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		_, err = listener.WriteToUDP([]byte(networkIdentify), remoteAddr)
+		_, err = conn.WriteToUDP([]byte(networkIdentify), remoteAddr)
 		if err != nil {
 			log.Fatal(err)
 		}

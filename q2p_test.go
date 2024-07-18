@@ -9,8 +9,10 @@ import (
 )
 
 type cmdFlag_T struct {
-	IP string
-	Port int
+	ip string
+	port int
+	remoteHost string
+	networkIdentify string
 }
 
 var cmdFlag *cmdFlag_T
@@ -18,12 +20,19 @@ var cmdFlag *cmdFlag_T
 func init() {
 	cmdFlag = &cmdFlag_T{}
 	readFlags(cmdFlag)
+	cmdFlag.networkIdentify = "Hello"
 }
 
 func TestQ2P(t *testing.T) {
 	t.Log(*cmdFlag)
 
-	err := Q2P(cmdFlag.IP, cmdFlag.Port)
+	params := &q2pParams_T {
+		cmdFlag.ip,
+		cmdFlag.port,
+		cmdFlag.remoteHost,
+		cmdFlag.networkIdentify,
+	}
+	err := Q2P(params)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,6 +44,7 @@ func TestQ2P(t *testing.T) {
 }
 
 func readFlags(cmdFlag *cmdFlag_T) {
-        flag.StringVar(&cmdFlag.IP, "ip", "0.0.0.0", "UDP host IP")
-	flag.IntVar(&cmdFlag.Port, "port", 10000, "UDP host Port")
+	flag.StringVar(&cmdFlag.ip, "ip", "0.0.0.0", "UDP host IP")
+	flag.IntVar(&cmdFlag.port, "port", 10000, "UDP host Port")
+	flag.StringVar(&cmdFlag.remoteHost, "remote_host", "", "remote host address")
 }
