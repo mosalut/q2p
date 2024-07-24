@@ -1,185 +1,66 @@
 package q2p
 
 import (
-	"encoding/binary"
 	"net"
 	"log"
 )
 
-type peer_T struct {
-	IP string
-	Port int
-	RemoteSeeds []*net.UDPAddr
-	NetworkID uint16
-	Conn *net.UDPConn
-	Callback func(*peer_T, *net.UDPAddr, uint16, []byte) error
-}
-
-func NewPeer(ip string, port int, rAddrs []*net.UDPAddr, networkID uint16) *peer_T {
-	return &peer_T {ip, port, rAddrs, networkID, nil, nil}
-}
-
-func (peer *peer_T)Run() error {
-	listener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(peer.IP), Port: peer.Port})
-	if err != nil {
-		return err
-	}
-	peer.Conn = listener
-
-	log.Println(listener.LocalAddr().String())
-
-	go peer.read()
-
-	/*
-	if peer.RHAddr != "" {
-		joinOne(listener, peer.RHAddr, peer.NetworkID)
-	}
-	*/
-
-	peer.join()
-
-	return nil
-}
-
-func (peer *peer_T)read() {
-	data := make([]byte, 1024)
-	for {
-		n, remoteAddr, err := peer.Conn.ReadFromUDP(data)
-		if err != nil {
-			log.Println("error during read:", err)
+func callback(peer *peer_T, rAddr *net.UDPAddr, event uint16, data []byte) error {
+	log.Println("event:", event)
+	switch event {
+	case JOIN:
+		log.Println("event: JOIN")
+		log.Println("remote seeds")
+		for seed, _ := range peer.RemoteSeeds {
+			log.Println(seed.String())
 		}
-		log.Println(remoteAddr, n, data[:n])
-
-		if n < 4 {
-			log.Println("Invalid q2p header length", binary.LittleEndian.Uint16(data[:2]), binary.LittleEndian.Uint16(data[2:]))
-			continue
-		}
-
-		networkID := binary.LittleEndian.Uint16(data[:2])
-		event := binary.LittleEndian.Uint16(data[2:])
-
-		if networkID != peer.NetworkID {
-			log.Println("Different q2p network id", networkID, peer.NetworkID)
-			continue
-		}
-
-		log.Println(networkID)
-
-		peer.Callback(peer, remoteAddr, event, data[:n])
-		/*
-		_, err = peer.Conn.WriteToUDP([]byte("world"), remoteAddr)
+		peer.TouchRequest(rAddr)
+		peer.RemoteSeeds[rAddr] = false
+	case TOUCHREQUEST:
+		log.Println("event: TOUCHREQUEST")
+		log.Println("rAddr3:", string(data[4:]))
+		rAddr3, err := net.ResolveUDPAddr("udp", string(data[4:]))
 		if err != nil {
 			log.Println(err)
 		}
-		*/
-	}
-}
 
-func (peer *peer_T)join() {
-	header := make([]byte, 0, 4)
-	bs := make([]byte, 2, 2)
-	binary.LittleEndian.PutUint16(bs, peer.NetworkID)
-	header = append(header, bs...)
-
-	binary.LittleEndian.PutUint16(bs, JOIN)
-	header = append(header, bs...)
-
-	for _, seed := range peer.RemoteSeeds {
-		_, err := peer.Conn.WriteToUDP(header, seed)
+		peer.Touch(rAddr, rAddr3)
+	case TOUCH:
+		log.Println("event: TOUCH")
+	case TOUCHED:
+		log.Println("event: TOUCHED")
+		log.Println("rAddr3:", string(data[4:]))
+		rAddr3, err := net.ResolveUDPAddr("udp", string(data[4:]))
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 		}
-	}
-}
 
-func (peer *peer_T)TouchRequest(rAddr3 *net.UDPAddr) {
-	header := make([]byte, 0, 4)
-	bs := make([]byte, 2, 2)
-	binary.LittleEndian.PutUint16(bs, peer.NetworkID)
-	header = append(header, bs...)
-
-	binary.LittleEndian.PutUint16(bs, TOUCHREQUEST)
-	header = append(header, bs...)
-
-	data := append(header, []byte(rAddr3.String())...)
-
-	for _, seed := range peer.RemoteSeeds {
-		_, err := peer.Conn.WriteToUDP(data, seed)
+		peer.ConnectRequest(rAddr, rAddr3) // here rAddr is rAddr2
+	case CONNECTREQUEST:
+		log.Println("event: CONNECTREQUEST")
+		log.Println("rAddr2:", string(data[4:]))
+		rAddr2, err := net.ResolveUDPAddr("udp", string(data[4:]))
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 		}
+
+		peer.Connect(rAddr2)
+	case CONNECT:
+		log.Println("event: CONNECT")
+		log.Println("from:", rAddr.String())
+		peer.RemoteSeeds[rAddr] = false
+
+		peer.Connected(rAddr)
+	case CONNECTED:
+		log.Println("event: CONNECTED")
+		log.Println("from:", rAddr.String())
+		peer.RemoteSeeds[rAddr] = false
+	case TEST:
+		log.Println("event: TEST")
+	default:
+		log.Println(event)
+		log.Println("Undefined event")
 	}
-}
 
-func (peer *peer_T)Touch(rAddr, rAddr3 *net.UDPAddr) {
-	header := make([]byte, 0, 4)
-	bs := make([]byte, 2, 2)
-	binary.LittleEndian.PutUint16(bs, peer.NetworkID)
-	header = append(header, bs...)
-
-	binary.LittleEndian.PutUint16(bs, TOUCH)
-	header = append(header, bs...)
-
-	_, err := peer.Conn.WriteToUDP(header, rAddr3)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	header = header[:2]
-	binary.LittleEndian.PutUint16(bs, TOUCHED)
-	header = append(header, bs...)
-
-	data := append(header, []byte(rAddr3.String())...)
-
-	_, err = peer.Conn.WriteToUDP(data, rAddr)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func (peer *peer_T)ConnectRequest(rAddr2, rAddr3 *net.UDPAddr) {
-	header := make([]byte, 0, 4)
-	bs := make([]byte, 2, 2)
-	binary.LittleEndian.PutUint16(bs, peer.NetworkID)
-	header = append(header, bs...)
-
-	binary.LittleEndian.PutUint16(bs, CONNECTREQUEST)
-	header = append(header, bs...)
-
-	data := append(header, []byte(rAddr2.String())...)
-
-	_, err := peer.Conn.WriteToUDP(data, rAddr3)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func (peer *peer_T)Connect(rAddr2 *net.UDPAddr) {
-	header := make([]byte, 0, 4)
-	bs := make([]byte, 2, 2)
-	binary.LittleEndian.PutUint16(bs, peer.NetworkID)
-	header = append(header, bs...)
-
-	binary.LittleEndian.PutUint16(bs, CONNECT)
-	header = append(header, bs...)
-
-	_, err := peer.Conn.WriteToUDP(header, rAddr2)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func (peer *peer_T)Connected(rAddr3 *net.UDPAddr) {
-	header := make([]byte, 0, 4)
-	bs := make([]byte, 2, 2)
-	binary.LittleEndian.PutUint16(bs, peer.NetworkID)
-	header = append(header, bs...)
-
-	binary.LittleEndian.PutUint16(bs, CONNECTED)
-	header = append(header, bs...)
-
-	_, err := peer.Conn.WriteToUDP(header, rAddr3)
-	if err != nil {
-		log.Fatal(err)
-	}
+	return nil
 }

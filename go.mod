@@ -1,3 +1,3 @@
-module q2p
+module github.com/mosalut/q2p
 
-go 1.20
+go 1.22.2
