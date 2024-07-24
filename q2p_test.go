@@ -20,6 +20,7 @@ type cmdFlag_T struct {
 var cmdFlag *cmdFlag_T
 
 func init() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	cmdFlag = &cmdFlag_T{}
 	readFlags(cmdFlag)
 	cmdFlag.networkID = 0
@@ -60,19 +61,52 @@ func readFlags(cmdFlag *cmdFlag_T) {
 func callback(peer *peer_T, rAddr *net.UDPAddr, event uint16, data []byte) error {
 	log.Println("event:", event)
 	switch event {
-	case 0:
+	case JOIN:
 		log.Println("event: JOIN")
-		peer.TouchRequest()
+		peer.TouchRequest(rAddr)
 		peer.RemoteSeeds = append(peer.RemoteSeeds, rAddr)
-	case 1:
+	case TOUCHREQUEST:
+		log.Println("event: TOUCHREQUEST")
+		log.Println("rAddr3:", string(data[4:]))
+		rAddr3, err := net.ResolveUDPAddr("udp", string(data[4:]))
+		if err != nil {
+			log.Println(err)
+		}
+
+		peer.Touch(rAddr, rAddr3)
+	case TOUCH:
 		log.Println("event: TOUCH")
-		peer.ConnectRequest(rAddr)
-	case 2:
+	case TOUCHED:
+		log.Println("event: TOUCHED")
+		log.Println("rAddr3:", string(data[4:]))
+		rAddr3, err := net.ResolveUDPAddr("udp", string(data[4:]))
+		if err != nil {
+			log.Println(err)
+		}
+
+		peer.ConnectRequest(rAddr, rAddr3) // here rAddr is rAddr2
+	case CONNECTREQUEST:
+		log.Println("event: CONNECTREQUEST")
+		log.Println("rAddr2:", string(data[4:]))
+		rAddr2, err := net.ResolveUDPAddr("udp", string(data[4:]))
+		if err != nil {
+			log.Println(err)
+		}
+
+		peer.Connect(rAddr2)
+	case CONNECT:
 		log.Println("event: CONNECT")
+		log.Println("from:", rAddr.String())
+		peer.RemoteSeeds = append(peer.RemoteSeeds, rAddr)
+
+		peer.Connected(rAddr)
+	case CONNECTED:
+		log.Println("event: CONNECTED")
+		log.Println("from:", rAddr.String())
+		peer.RemoteSeeds = append(peer.RemoteSeeds, rAddr)
 	default:
 		log.Println("Undefined event")
 	}
 
-	log.Println(data)
 	return nil
 }

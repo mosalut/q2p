@@ -2,6 +2,10 @@ package q2p
 
 const (
 	JOIN = iota
+	TOUCHREQUEST
 	TOUCH
+	TOUCHED
+	CONNECTREQUEST
 	CONNECT
+	CONNECTED
 )
