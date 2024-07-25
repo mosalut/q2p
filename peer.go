@@ -12,11 +12,10 @@ type peer_T struct {
 	RemoteSeeds map[*net.UDPAddr]bool
 	NetworkID uint16
 	Conn *net.UDPConn
-	Callback func(*peer_T, *net.UDPAddr, uint16, []byte) error
 }
 
 func NewPeer(ip string, port int, rAddrs map[*net.UDPAddr]bool, networkID uint16) *peer_T {
-	return &peer_T {ip, port, rAddrs, networkID, nil, nil}
+	return &peer_T {ip, port, rAddrs, networkID, nil}
 }
 
 func (peer *peer_T)Run() error {
@@ -59,7 +58,7 @@ func (peer *peer_T)read() {
 
 		log.Println(networkID)
 
-		peer.Callback(peer, remoteAddr, event, data[:n])
+		peer.connectionProcess(remoteAddr, event, data[:n])
 	}
 }
 

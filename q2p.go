@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-func callback(peer *peer_T, rAddr *net.UDPAddr, event uint16, data []byte) error {
+func (peer *peer_T)connectionProcess(rAddr *net.UDPAddr, event uint16, data []byte) error {
 	log.Println("event:", event)
 	switch event {
 	case JOIN:

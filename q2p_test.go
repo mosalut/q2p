@@ -40,7 +40,6 @@ func TestQ2P(t *testing.T) {
 	}
 
 	peer := NewPeer(cmdFlag.ip, cmdFlag.port, seedAddrs, cmdFlag.networkID)
-	peer.Callback = callback
 	err := peer.Run()
 	if err != nil {
 		t.Fatal(err)
