@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"flag"
-	"net"
 	"log"
 )
 
@@ -29,14 +28,9 @@ func init() {
 func TestQ2P(t *testing.T) {
 	t.Log(*cmdFlag)
 
-	seedAddrs := make(map[*net.UDPAddr]bool)
+	seedAddrs := make(map[string]bool)
 	if cmdFlag.remoteHost != "" {
-		remoteAddr, err := net.ResolveUDPAddr("udp", cmdFlag.remoteHost)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		seedAddrs[remoteAddr] = false
+		seedAddrs[cmdFlag.remoteHost] = false
 	}
 
 	peer := NewPeer(cmdFlag.ip, cmdFlag.port, seedAddrs, cmdFlag.networkID)

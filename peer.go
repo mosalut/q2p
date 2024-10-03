@@ -9,12 +9,12 @@ import (
 type peer_T struct {
 	IP string
 	Port int
-	RemoteSeeds map[*net.UDPAddr]bool
+	RemoteSeeds map[string]bool
 	NetworkID uint16
 	Conn *net.UDPConn
 }
 
-func NewPeer(ip string, port int, rAddrs map[*net.UDPAddr]bool, networkID uint16) *peer_T {
+func NewPeer(ip string, port int, rAddrs map[string]bool, networkID uint16) *peer_T {
 	return &peer_T {ip, port, rAddrs, networkID, nil}
 }
 
@@ -35,7 +35,7 @@ func (peer *peer_T)Run() error {
 }
 
 func (peer *peer_T)read() {
-	data := make([]byte, 1024)
+	data := make([]byte, 64)
 	for {
 		n, remoteAddr, err := peer.Conn.ReadFromUDP(data)
 		if err != nil {
@@ -58,7 +58,10 @@ func (peer *peer_T)read() {
 
 		log.Println(networkID)
 
-		peer.connectionProcess(remoteAddr, event, data[:n])
+		err = peer.networking(remoteAddr, event, data[:n])
+		if err != nil {
+			log.Println(err)
+		}
 	}
 }
 
@@ -72,7 +75,13 @@ func (peer *peer_T)join() {
 	header = append(header, bs...)
 
 	for seed, _ := range peer.RemoteSeeds {
-		_, err := peer.Conn.WriteToUDP(header, seed)
+		seedAddr, err := net.ResolveUDPAddr("udp", seed)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		_, err = peer.Conn.WriteToUDP(header, seedAddr)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -92,8 +101,14 @@ func (peer *peer_T)TouchRequest(rAddr3 *net.UDPAddr) {
 
 	for seed, _ := range peer.RemoteSeeds {
 		log.Println("seed:", seed)
+		seedAddr, err := net.ResolveUDPAddr("udp", seed)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
 		for i := 0; i < 1; i++ {
-			_, err := peer.Conn.WriteToUDP(data, seed)
+			_, err = peer.Conn.WriteToUDP(data, seedAddr)
 			if err != nil {
 				log.Fatal(err)
 			}
