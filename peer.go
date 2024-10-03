@@ -101,6 +101,10 @@ func (peer *peer_T)TouchRequest(rAddr3 *net.UDPAddr) {
 
 	for seed, _ := range peer.RemoteSeeds {
 		log.Println("seed:", seed)
+		if seed == rAddr3.String() {
+			continue
+		}
+
 		seedAddr, err := net.ResolveUDPAddr("udp", seed)
 		if err != nil {
 			log.Println(err)
@@ -144,6 +148,10 @@ func (peer *peer_T)Touch(rAddr, rAddr3 *net.UDPAddr) {
 }
 
 func (peer *peer_T)ConnectRequest(rAddr2, rAddr3 *net.UDPAddr) {
+	if rAddr2.String() == rAddr3.String() {
+		return
+	}
+
 	header := make([]byte, 0, 4)
 	bs := make([]byte, 2, 2)
 	binary.LittleEndian.PutUint16(bs, peer.NetworkID)

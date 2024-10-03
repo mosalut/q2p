@@ -23,7 +23,7 @@ func (peer *peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte) err
 	switch event {
 	case JOIN:
 		log.Println("event: JOIN")
-		log.Println("remote seeds")
+
 		peer.TouchRequest(rAddr)
 		if(len(peer.RemoteSeeds) < connection_num) {
 			peer.RemoteSeeds[rAddr.String()] = false
