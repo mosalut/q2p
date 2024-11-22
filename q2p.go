@@ -1,10 +1,16 @@
 package q2p
 
 import (
+	"encoding/binary"
+	"context"
 	"net"
+	"time"
+	"errors"
+	"fmt"
 	"log"
 )
 
+/*
 type Header_T struct {
 	RAddr *net.UDPAddr `json:"raddr"`
 	PackageNum int `json:"package_num"`
@@ -17,9 +23,15 @@ type Request_T struct {
 	Body []byte `json:"body"`
 	Status int `json:"status"` // 0: header, 1: receiving, 2: received
 }
+*/
 
 func (peer *peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte) error {
-	log.Println("event:", event)
+	version := binary.LittleEndian.Uint16(data[:2])
+	log.Println("version:", version)
+	if version != 0 {
+		return errors.New("Dismatch networking version")
+	}
+
 	switch event {
 	case JOIN:
 		log.Println("event: JOIN")
@@ -75,10 +87,64 @@ func (peer *peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte) err
 		log.Println("event: CONNECTED")
 		log.Println("from:", rAddr.String())
 		peer.RemoteSeeds[rAddr.String()] = false
-	case HEADER:
+	case TRANSPORT:
+		event := binary.LittleEndian.Uint16(data[2:4])
 
-	case BODY:
+		log.Println("event: TRANSPORT", event)
+		log.Println("from:", rAddr.String())
 
+		hash := data[4:20]
+		length := binary.LittleEndian.Uint32(data[20:24])
+		syn := binary.LittleEndian.Uint32(data[24:28])
+
+		key := fmt.Sprintf("%x", hash)
+		fmt.Println("hash:", key)
+
+		_, ok := transmissionR[key]
+		if !ok {
+			transmissionR[key] = make([]byte, 0, length)
+
+			ctx, _ := context.WithTimeout(context.TODO(), time.Second * 10)
+			go transmissionReceiving(ctx, peer, hash, rAddr.String())
+
+			packetNum := length / 484
+			transmissionRSYNS[key] = make(map[uint32]bool)
+
+			for i := 0; i < int(packetNum); i++ {
+				transmissionRSYNS[key][uint32(i)] = false
+			}
+		}
+
+		fmt.Println("length:", length)
+		fmt.Println("syn:", syn)
+		fmt.Println("length:", len(data[28:]))
+
+		start := int(syn) * 484
+		end := int(start) + len(data[28:])
+		transmissionR[key] = append(transmissionR[key][0:start], data[28:]...)
+		transmissionR[key] = append(transmissionR[key][0:end], transmissionR[key][end:]...)
+
+		delete(transmissionRSYNS[key], syn)
+
+		fmt.Println(transmissionR[key])
+		fmt.Println(string(transmissionR[key]))
+	case TRANSPORT_FAILED:
+		event := binary.LittleEndian.Uint16(data[2:4])
+		log.Println("event: TRANSPORT FAILED", event)
+		log.Println("from:", rAddr.String())
+
+		hash := data[4:20]
+		fmt.Printf("%x failed\n", hash)
+
+		lengthOfSyns := (len(data) - 20) / 4
+		syns := make([]uint32, 0, lengthOfSyns)
+		for i := 0; i < lengthOfSyns; i++ {
+			start := 20 + i * 4
+			end := start + 4
+			syn := binary.LittleEndian.Uint32(data[start:end])
+			syns = append(syns, syn)
+		}
+		fmt.Println(syns)
 	case TEST:
 		log.Println("event: TEST")
 	default:
