@@ -25,7 +25,7 @@ type Request_T struct {
 }
 */
 
-func (peer *peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte) error {
+func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte) error {
 	version := binary.LittleEndian.Uint16(data[:2])
 	log.Println("version:", version)
 	if version != 0 {

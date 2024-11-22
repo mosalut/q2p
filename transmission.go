@@ -21,7 +21,7 @@ func transmissionSending(ctx context.Context, key, addr string) {
 	}
 }
 
-func transmissionReceiving(ctx context.Context, peer *peer_T, hash []byte, addr string) {
+func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr string) {
 	key := fmt.Sprintf("%x", hash)
 
 	select {
