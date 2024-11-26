@@ -7,10 +7,16 @@ import (
 	"log"
 )
 
+type ctx_T struct {
+	ctx context.Context
+	cancel context.CancelFunc
+}
+
 // pool of transmission, string is a MD5 hash string, uint32 is a SYN
 var transmissionM = make(map[string]map[uint32][]byte) // Senders' data
 var transmissionR = make(map[string][]byte) // Receiver' data
 var transmissionRSYNS = make(map[string]map[uint32]bool) // Receiver' data
+var transmissionCTXM = make(map[string]*ctx_T)
 
 func transmissionSending(ctx context.Context, key, addr string) {
 	select {
@@ -43,6 +49,8 @@ func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr 
 			peer.transportFailed(rAddr, hash, syns)
 		}
 		delete(transmissionR, key)
+		delete(transmissionRSYNS, key)
+		delete(transmissionCTXM, key)
 		log.Println(key, addr, "recieving over")
 		log.Println(ctx.Err())
 	}

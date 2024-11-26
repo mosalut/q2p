@@ -10,22 +10,7 @@ import (
 	"log"
 )
 
-/*
-type Header_T struct {
-	RAddr *net.UDPAddr `json:"raddr"`
-	PackageNum int `json:"package_num"`
-	Hash [32]byte `json:"hash"`
-	Timestamp int64 `json:"timestamp"`
-}
-
-type Request_T struct {
-	Header *Header_T `json:"header"`
-	Body []byte `json:"body"`
-	Status int `json:"status"` // 0: header, 1: receiving, 2: received
-}
-*/
-
-func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte) error {
+func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte, callback func(data []byte)) error {
 	version := binary.LittleEndian.Uint16(data[:2])
 	log.Println("version:", version)
 	if version != 0 {
@@ -102,10 +87,11 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte) err
 
 		_, ok := transmissionR[key]
 		if !ok {
-			transmissionR[key] = make([]byte, 0, length)
+			transmissionR[key] = make([]byte, length, length)
 
-			ctx, _ := context.WithTimeout(context.TODO(), time.Second * 10)
-			go transmissionReceiving(ctx, peer, hash, rAddr.String())
+			transmissionCTXM[key] = &ctx_T{}
+			transmissionCTXM[key].ctx, transmissionCTXM[key].cancel = context.WithTimeout(context.TODO(), time.Second * 10)
+			go transmissionReceiving(transmissionCTXM[key].ctx, peer, hash, rAddr.String())
 
 			packetNum := length / 484
 			transmissionRSYNS[key] = make(map[uint32]bool)
@@ -115,19 +101,24 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte) err
 			}
 		}
 
+		/*
 		fmt.Println("length:", length)
 		fmt.Println("syn:", syn)
 		fmt.Println("length:", len(data[28:]))
+		*/
 
 		start := int(syn) * 484
 		end := int(start) + len(data[28:])
-		transmissionR[key] = append(transmissionR[key][0:start], data[28:]...)
-		transmissionR[key] = append(transmissionR[key][0:end], transmissionR[key][end:]...)
+
+		copy(transmissionR[key][start:end], data[28:])
 
 		delete(transmissionRSYNS[key], syn)
 
-		fmt.Println(transmissionR[key])
-		fmt.Println(string(transmissionR[key]))
+		if(len(transmissionRSYNS[key]) == 0) {
+			go callback(transmissionR[key])
+			transmissionCTXM[key].cancel()
+		}
+
 	case TRANSPORT_FAILED:
 		event := binary.LittleEndian.Uint16(data[2:4])
 		log.Println("event: TRANSPORT FAILED", event)
