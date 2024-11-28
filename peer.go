@@ -12,12 +12,12 @@ import (
 )
 
 type Peer_T struct {
-	IP string
-	Port int
-	RemoteSeeds map[string]bool
-	NetworkID uint16
-	Conn *net.UDPConn
-	Callback func([]byte)
+	IP string `json:"ip"`
+	Port int `json:"port"`
+	RemoteSeeds map[string]bool `json:"remote_seeds"`
+	NetworkID uint16 `json:"network_id"`
+	Conn *net.UDPConn `json:"conn"`
+	Callback func([]byte) `json:"-"`
 }
 
 func NewPeer(ip string, port int, rAddrs map[string]bool, networkID uint16, callback func([]byte)) *Peer_T {
