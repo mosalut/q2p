@@ -3,6 +3,7 @@ package q2p
 import (
 	"crypto/md5"
 	"encoding/binary"
+	"encoding/hex"
 	"context"
 	"net"
 	"errors"
@@ -11,17 +12,22 @@ import (
 	"log"
 )
 
+const PACKET_LEN = 484
+
 type Peer_T struct {
 	IP string `json:"ip"`
 	Port int `json:"port"`
 	RemoteSeeds map[string]bool `json:"remote_seeds"`
 	NetworkID uint16 `json:"network_id"`
 	Conn *net.UDPConn `json:"conn"`
-	Callback func([]byte) `json:"-"`
+	TimeSendLost int `json:"time_send_again"` // SEC.
+	Timeout int `json:"timeout"` // SEC.
+	Callback func(string, []byte) `json:"-"`
+	CallbackFailed func(*Peer_T, *net.UDPAddr, string, []uint32) `json:"-"`
 }
 
-func NewPeer(ip string, port int, rAddrs map[string]bool, networkID uint16, callback func([]byte)) *Peer_T {
-	return &Peer_T {ip, port, rAddrs, networkID, nil, callback}
+func NewPeer(ip string, port int, rAddrs map[string]bool, networkID uint16, timeSendAgain, timeout int, callback func(string, []byte), callbackFailed func(*Peer_T, *net.UDPAddr, string, []uint32)) *Peer_T {
+	return &Peer_T {ip, port, rAddrs, networkID, nil, timeSendAgain, timeout, callback, callbackFailed}
 }
 
 func (peer *Peer_T)Run() error {
@@ -48,7 +54,6 @@ func (peer *Peer_T)read() {
 		if err != nil {
 			log.Println("error during read:", err)
 		}
-	//	log.Println(remoteAddr, n, data[:n])
 
 		if n < 4 {
 			log.Println("Invalid q2p header length")
@@ -65,9 +70,7 @@ func (peer *Peer_T)read() {
 			continue
 		}
 
-		log.Println(networkID)
-
-		err = peer.networking(remoteAddr, event, data[:n], peer.Callback)
+		err = peer.networking(remoteAddr, event, data[:n])
 		if err != nil {
 			log.Println(err)
 		}
@@ -205,7 +208,39 @@ func (peer *Peer_T)Connected(rAddr3 *net.UDPAddr) {
 	}
 }
 
-func (peer *Peer_T)Transport(rAddr *net.UDPAddr, data []byte) error {
+func (peer *Peer_T)TransportAPacket(rAddr *net.UDPAddr, key string, syn uint32, body []byte) error {
+	log.Println("send again:", key, syn)
+	header := make([]byte, 0, 4)
+	bs := make([]byte, 2, 2)
+	binary.LittleEndian.PutUint16(bs, peer.NetworkID)
+	header = append(header, bs...)
+
+	binary.LittleEndian.PutUint16(bs, TRANSPORT)
+	header = append(header, bs...)
+
+	hash, err := hex.DecodeString(key)
+	if err != nil {
+		return err
+	}
+
+	bs = make([]byte, 4, 4)
+	transmissionHead := make([]byte, 0, 24)
+	transmissionHead = append(transmissionHead, hash[:]...) // 0th ~ 16th bytes: hash
+	transmissionHead = append(transmissionHead, []byte{0, 0, 0, 0}...) // 16th ~ 20th bytes: length always = 0
+	binary.LittleEndian.PutUint32(bs, syn)
+	transmissionHead = append(transmissionHead, bs...) // 20nd ~ 24th bytes: SYN
+
+	transm := append(transmissionHead, body...)
+	transmission := append(header, transm...)
+	_, err = peer.Conn.WriteToUDP(transmission, rAddr)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (peer *Peer_T)Transport(rAddr *net.UDPAddr, data []byte) (string, error) {
 	header := make([]byte, 0, 4)
 	bs := make([]byte, 2, 2)
 	binary.LittleEndian.PutUint16(bs, peer.NetworkID)
@@ -215,18 +250,17 @@ func (peer *Peer_T)Transport(rAddr *net.UDPAddr, data []byte) error {
 	header = append(header, bs...)
 
 	hash := md5.Sum(data)
-	fmt.Println("hash:", hash)
 
 	key := fmt.Sprintf("%x", hash)
 	fmt.Println(key)
 
 	length := len(data)
 	if(length > 2078764170780) { // 2078764170780 = math.MaxUint32 * 484, 484 is each packet's body length
-		return errors.New("too long data: should be less than 2078764170780")
+		return "", errors.New("too long data: should be less than 2078764170780")
 	}
-	packetNum := length / 484
+	packetNum := length / PACKET_LEN
 
-	if length % 484 != 0 {
+	if length % PACKET_LEN != 0 {
 		packetNum++
 	}
 
@@ -238,23 +272,20 @@ func (peer *Peer_T)Transport(rAddr *net.UDPAddr, data []byte) error {
 	transmissionHead = append(transmissionHead, bs...)  // 16th ~ 20nd bytes: length
 	transmissionHead = append(transmissionHead, []byte{0, 0, 0, 0}...) // 20nd ~ 24th bytes: leave space empty for each SYN
 
-	transmissionM[key] = make(map[uint32][]byte)
-
 	for i := 0; i < packetNum; i++ {
 		/* for packet losing test
 		if i == 3 || i == 5 {
 			continue
 		}
 		*/
-		start := i * 484
-		end := start + 484
+
+		start := i * PACKET_LEN
+		end := start + PACKET_LEN
 		if(length < end) {
 			end = length
 		}
 
-		log.Println("start:", start)
 		body := data[start: end]
-		transmissionM[key][uint32(i)] = body
 
 		// SYN
 		binary.LittleEndian.PutUint32(bs, uint32(i))
@@ -268,10 +299,10 @@ func (peer *Peer_T)Transport(rAddr *net.UDPAddr, data []byte) error {
 		}
 	}
 
-	ctx, _ := context.WithTimeout(context.TODO(), time.Second * 10)
+	ctx, _ := context.WithTimeout(context.TODO(), time.Second * time.Duration(peer.Timeout))
 	go transmissionSending(ctx, key, rAddr.String())
 
-	return nil
+	return key, nil
 
 }
 

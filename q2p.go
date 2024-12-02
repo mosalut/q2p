@@ -10,7 +10,7 @@ import (
 	"log"
 )
 
-func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte, callback func(data []byte)) error {
+func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte) error {
 	version := binary.LittleEndian.Uint16(data[:2])
 	log.Println("version:", version)
 	if version != 0 {
@@ -83,14 +83,13 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte, cal
 		syn := binary.LittleEndian.Uint32(data[24:28])
 
 		key := fmt.Sprintf("%x", hash)
-		fmt.Println("hash:", key)
 
 		_, ok := transmissionR[key]
 		if !ok {
 			transmissionR[key] = make([]byte, length, length)
 
 			transmissionCTXM[key] = &ctx_T{}
-			transmissionCTXM[key].ctx, transmissionCTXM[key].cancel = context.WithTimeout(context.TODO(), time.Second * 10)
+			transmissionCTXM[key].ctx, transmissionCTXM[key].cancel = context.WithTimeout(context.TODO(), time.Second * time.Duration(peer.Timeout))
 			go transmissionReceiving(transmissionCTXM[key].ctx, peer, hash, rAddr.String())
 
 			packetNum := length / 484
@@ -110,12 +109,20 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte, cal
 		start := int(syn) * 484
 		end := int(start) + len(data[28:])
 
+		if len(transmissionR[key]) == 0 {
+			break
+		}
+
 		copy(transmissionR[key][start:end], data[28:])
+
+		if len(transmissionRSYNS[key]) == 0 {
+			break
+		}
 
 		delete(transmissionRSYNS[key], syn)
 
 		if(len(transmissionRSYNS[key]) == 0) {
-			go callback(transmissionR[key])
+			go peer.Callback(key, transmissionR[key])
 			transmissionCTXM[key].cancel()
 		}
 
@@ -125,7 +132,7 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte, cal
 		log.Println("from:", rAddr.String())
 
 		hash := data[4:20]
-		fmt.Printf("%x failed\n", hash)
+		key := fmt.Sprintf("%x", hash)
 
 		lengthOfSyns := (len(data) - 20) / 4
 		syns := make([]uint32, 0, lengthOfSyns)
@@ -135,7 +142,8 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte, cal
 			syn := binary.LittleEndian.Uint32(data[start:end])
 			syns = append(syns, syn)
 		}
-		fmt.Println(syns)
+
+		peer.CallbackFailed(peer, rAddr, key, syns)
 	case TEST:
 		log.Println("event: TEST")
 	default:
