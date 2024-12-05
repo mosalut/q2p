@@ -5,23 +5,27 @@ import (
 	"context"
 	"net"
 	"time"
-	"errors"
 	"fmt"
 	"log"
 )
 
-func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte) error {
-	version := binary.LittleEndian.Uint16(data[:2])
-	log.Println("version:", version)
-	if version != 0 {
-		return errors.New("Dismatch networking version")
+func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
+	networkID := binary.LittleEndian.Uint16(data[:2])
+	event := binary.LittleEndian.Uint16(data[2:4])
+
+	log.Println("Remote networkID =", networkID)
+	log.Println("event =", event)
+
+	if networkID != peer.NetworkID && event != CONNECT_FAILED {
+		peer.connectFailed(rAddr, []byte("Dismatch networking version"))
+		return
 	}
 
 	switch event {
 	case JOIN:
 		log.Println("event: JOIN")
 
-		peer.TouchRequest(rAddr)
+		peer.touchRequest(rAddr)
 		if(len(peer.RemoteSeeds) < connection_num) {
 			peer.RemoteSeeds[rAddr.String()] = false
 		}
@@ -37,7 +41,7 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte) err
 			log.Println(err)
 		}
 
-		peer.Touch(rAddr, rAddr3)
+		peer.touch(rAddr, rAddr3)
 	case TOUCH:
 		log.Println("event: TOUCH")
 	case TOUCHED:
@@ -48,7 +52,7 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte) err
 			log.Println(err)
 		}
 
-		peer.ConnectRequest(rAddr, rAddr3) // here rAddr is rAddr2
+		peer.connectRequest(rAddr, rAddr3) // here rAddr is rAddr2
 	case CONNECTREQUEST:
 		log.Println("event: CONNECTREQUEST")
 		if(len(peer.RemoteSeeds) >= connection_num) {
@@ -61,17 +65,21 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte) err
 			log.Println(err)
 		}
 
-		peer.Connect(rAddr2)
+		peer.connect(rAddr2)
 	case CONNECT:
 		log.Println("event: CONNECT")
 		log.Println("from:", rAddr.String())
 		peer.RemoteSeeds[rAddr.String()] = false
 
-		peer.Connected(rAddr)
+		peer.connected(rAddr)
 	case CONNECTED:
 		log.Println("event: CONNECTED")
 		log.Println("from:", rAddr.String())
 		peer.RemoteSeeds[rAddr.String()] = false
+	case CONNECT_FAILED:
+		log.Println("event: CONNECT_FAILED")
+		log.Println("from:", rAddr.String())
+		log.Println("Network error:", rAddr.String(), string(data[4:]))
 	case TRANSPORT:
 		event := binary.LittleEndian.Uint16(data[2:4])
 
@@ -150,6 +158,4 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, event uint16, data []byte) err
 		log.Println(event)
 		log.Println("Undefined event")
 	}
-
-	return nil
 }
