@@ -13,8 +13,8 @@ type ctx_T struct {
 	cancel context.CancelFunc
 }
 
-var transmissionR = make(map[string][]byte) // Receiver' data
-var transmissionRSYNS = make(map[string]map[uint32]bool) // Receiver' data
+var transmissionR = make(map[string][]byte) // Receivers' data
+var transmissionRSYNS = make(map[string]map[uint32]bool) // Receivers' data SYNs
 var transmissionCTXM = make(map[string]*ctx_T)
 
 func transmissionSending(ctx context.Context, key, addr string) {

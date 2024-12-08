@@ -130,7 +130,7 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 		delete(transmissionRSYNS[key], syn)
 
 		if(len(transmissionRSYNS[key]) == 0) {
-			go peer.Callback(key, transmissionR[key])
+			go peer.Callback(peer, rAddr, key, transmissionR[key])
 			transmissionCTXM[key].cancel()
 		}
 

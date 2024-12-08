@@ -1,4 +1,4 @@
-package q2p
+package q2p // github.com/mosalut/q2p
 
 import (
 	"crypto/md5"
@@ -15,21 +15,39 @@ import (
 const PACKET_LEN = 484
 
 type Peer_T struct {
-	IP string `json:"ip"`
-	Port int `json:"port"`
-	RemoteSeeds map[string]bool `json:"remote_seeds"`
+	IP string `json:"ip"` // Host address where the node starts. The default is 0.0.0.0
+	Port int `json:"port"` // Port where the node starts. The default is 10000.
+	RemoteSeeds map[string]bool `json:"remote_seeds"` // List of seed nodes. The default is empty.
 	NetworkID uint16 `json:"network_id"`
 	Conn *net.UDPConn `json:"conn"`
-	TimeSendLost int `json:"time_send_again"` // SEC.
-	Timeout int `json:"timeout"` // SEC.
-	Callback func(string, []byte) `json:"-"`
-	CallbackFailed func(*Peer_T, *net.UDPAddr, string, []uint32) `json:"-"`
+	TimeSendLost int `json:"time_send_again"` // How often the receiver checks for lost packets. If there are lost packets, it will inform the sender. The default value is 5(SECs).
+	Timeout int `json:"timeout"` // Timeout for the receiver to wait for complete data. If it times out, it will inform the sender. The default value is 5(SECs).
+	Callback func(*Peer_T, *net.UDPAddr, string, []byte) `json:"-"` // Callback function executed when complete data is received. The default function member is to type success transmission HASH.
+	CallbackFailed func(*Peer_T, *net.UDPAddr, string, []uint32) `json:"-"` // Callback function executed upon failure. If the length of the last parameter is 0, it indicates a timeout; otherwise, it represents the SYN position where the packet was lost. The default function member is to type timeout transmission HASH or lost transmission HASH that lost packet in with SYNs' positions.
 }
 
-func NewPeer(ip string, port int, rAddrs map[string]bool, networkID uint16, timeSendAgain, timeout int, callback func(string, []byte), callbackFailed func(*Peer_T, *net.UDPAddr, string, []uint32)) *Peer_T {
-	return &Peer_T {ip, port, rAddrs, networkID, nil, timeSendAgain, timeout, callback, callbackFailed}
+// Create a new peer
+// Parameter list:
+//	* see Peer_T's members
+func NewPeer(ip string, port int, rAddrs map[string]bool, networkID uint16) *Peer_T {
+	return &Peer_T {
+		ip, port, rAddrs, networkID, nil, 5, 5,
+		func(peer *Peer_T, rAddr *net.UDPAddr, key string, body []byte) {
+			fmt.Println("Succeeded transmission hash:", key)
+		},
+		func(peer *Peer_T, rAddr *net.UDPAddr, key string, syns []uint32) {
+			if len(syns) == 0 {
+				fmt.Println("transmission Failed, timeout, hash:", key)
+				return
+			}
+
+			fmt.Println("Lost packet: The hash in transmission:", key)
+			fmt.Println("Lost packet: The SYNS:", syns)
+		},
+	}
 }
 
+// Start peer
 func (peer *Peer_T)Run() error {
 	listener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(peer.IP), Port: peer.Port})
 	if err != nil {
@@ -209,6 +227,11 @@ func (peer *Peer_T)connectFailed(rAddr *net.UDPAddr, message []byte) {
 	}
 }
 
+// Transfer a single packet to the UDP address: `rAddr`.
+// It usually used to resend a lost packet.
+// `key` is the transmission's HASH that the lost packet is in.
+// `syn` is the packet's SYN.
+// `body` is the body for resend.
 func (peer *Peer_T)TransportAPacket(rAddr *net.UDPAddr, key string, syn uint32, body []byte) error {
 	log.Println("send again:", key, syn)
 	header := make([]byte, 0, 4)
@@ -241,6 +264,9 @@ func (peer *Peer_T)TransportAPacket(rAddr *net.UDPAddr, key string, syn uint32, 
 	return nil
 }
 
+// Transfer `data` to the UDP address: `rAddr`.
+// If the length of data > 2078764170780 (2078764170780 = math.MaxUint32 * 484, 484 is each packet's body length),
+// it'll return an empty string and an error. Or the transmission HASH and nil. 
 func (peer *Peer_T)Transport(rAddr *net.UDPAddr, data []byte) (string, error) {
 	header := make([]byte, 0, 4)
 	bs := make([]byte, 2, 2)
@@ -275,11 +301,10 @@ func (peer *Peer_T)Transport(rAddr *net.UDPAddr, data []byte) (string, error) {
 	transmissionHead = append(transmissionHead, []byte{0, 0, 0, 0}...) // 20nd ~ 24th bytes: leave space empty for each SYN
 
 	for i := 0; i < packetNum; i++ {
-		/* for packet losing test
+		// for packet losing test
 		if i == 3 || i == 5 {
 			continue
 		}
-		*/
 
 		start := i * PACKET_LEN
 		end := start + PACKET_LEN

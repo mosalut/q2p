@@ -37,7 +37,11 @@ func TestQ2P(t *testing.T) {
 
 	t.Log(*cmdFlag)
 
-	peer := NewPeer(cmdFlag.ip, cmdFlag.port, seedAddrs, cmdFlag.networkID, 3, 10, callback, callbackFailed)
+	peer := NewPeer(cmdFlag.ip, cmdFlag.port, seedAddrs, cmdFlag.networkID)
+	peer.TimeSendLost = 3
+	peer.Timeout = 10
+	peer.Callback = callback
+	peer.CallbackFailed = callbackFailed
 	err := peer.Run()
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +61,11 @@ func TestTransport(t *testing.T) {
 
 	t.Log(*cmdFlag)
 
-	peer := NewPeer(cmdFlag.ip, cmdFlag.port, seedAddrs, cmdFlag.networkID, 3, 10, callback, callbackFailed)
+	peer := NewPeer(cmdFlag.ip, cmdFlag.port, seedAddrs, cmdFlag.networkID)
+	peer.TimeSendLost = 3
+	peer.Timeout = 10
+	peer.Callback = callback
+	peer.CallbackFailed = callbackFailed
 	err := peer.Run()
 	if err != nil {
 		t.Fatal(err)
@@ -93,7 +101,7 @@ OUTER:
 	t.Log("Received signal, shutting down...")
 }
 
-func callback(key string, data []byte) {
+func callback(peer *Peer_T, rAddr *net.UDPAddr, key string, data []byte) {
 	fmt.Println("Succeeded transmission hash:", key)
 	fmt.Println("Received data:", string(data))
 }
@@ -117,7 +125,8 @@ func callbackFailed(peer *Peer_T, rAddr *net.UDPAddr, key string, syns []uint32)
 			end = start + PACKET_LEN
 		}
 
-		fmt.Println("lost SYN:", syn, start, end, "data:", string(data[start:end]))
+	//	fmt.Println("lost SYN:", syn, start, end, "data:", string(data[start:end]))
+		fmt.Println("lost SYN:", syn, start, end)
 
 		err := peer.TransportAPacket(rAddr, key, syn, data[start:end])
 		if err != nil {
@@ -135,7 +144,7 @@ func TestTransport10001(t *testing.T) {
 		seedAddrs[cmdFlag.remoteHost] = false
 	}
 
-	peer := NewPeer(cmdFlag.ip, cmdFlag.port, seedAddrs, cmdFlag.networkID, 3, 10, callback, callbackFailed)
+	peer := NewPeer(cmdFlag.ip, cmdFlag.port, seedAddrs, cmdFlag.networkID)
 	err := peer.Run()
 	if err != nil {
 		t.Fatal(err)
