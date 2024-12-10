@@ -98,6 +98,7 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 
 			transmissionCTXM[key] = &ctx_T{}
 			transmissionCTXM[key].ctx, transmissionCTXM[key].cancel = context.WithTimeout(context.TODO(), time.Second * time.Duration(peer.Timeout))
+
 			go transmissionReceiving(transmissionCTXM[key].ctx, peer, hash, rAddr.String())
 
 			packetNum := length / 484

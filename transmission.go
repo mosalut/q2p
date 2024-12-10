@@ -18,14 +18,18 @@ var transmissionRSYNS = make(map[string]map[uint32]bool) // Receivers' data SYNs
 var transmissionCTXM = make(map[string]*ctx_T)
 
 func transmissionSending(ctx context.Context, key, addr string) {
+	log.Println("transmissionSending called")
 	select {
 	case <-ctx.Done():
-		log.Println(key, addr, "transport over")
+		log.Println("transmissionSending Done")
 		log.Println(ctx.Err())
+		log.Println(key, addr, "transport over")
 	}
 }
 
 func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr string) {
+	log.Println("transmissionReceiving called")
+
 	key := fmt.Sprintf("%x", hash)
 
 	for {
@@ -37,6 +41,7 @@ func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr 
 				rAddr, err := net.ResolveUDPAddr("udp", addr)
 				if err != nil {
 					log.Println(err)
+					log.Println("transmissionReceiving Done timeout")
 					return
 				}
 
@@ -48,9 +53,11 @@ func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr 
 			log.Println(key, addr, "recieving over")
 			log.Println(ctx.Err())
 
+			log.Println("transmissionReceiving Done")
 			return
 		default:
 			time.Sleep(time.Second * time.Duration(peer.TimeSendLost))
+			log.Println("RSYNS length:", len(transmissionRSYNS[key]))
 			if len(transmissionRSYNS[key]) != 0 {
 				log.Println("Packet lost")
 

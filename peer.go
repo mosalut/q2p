@@ -31,7 +31,7 @@ type Peer_T struct {
 //	* see Peer_T's members
 func NewPeer(ip string, port int, rAddrs map[string]bool, networkID uint16) *Peer_T {
 	return &Peer_T {
-		ip, port, rAddrs, networkID, nil, 5, 5,
+		ip, port, rAddrs, networkID, nil, 6, 5,
 		func(peer *Peer_T, rAddr *net.UDPAddr, key string, body []byte) {
 			fmt.Println("Succeeded transmission hash:", key)
 		},
@@ -42,7 +42,7 @@ func NewPeer(ip string, port int, rAddrs map[string]bool, networkID uint16) *Pee
 			}
 
 			fmt.Println("Lost packet: The hash in transmission:", key)
-			fmt.Println("Lost packet: The SYNS:", syns)
+			fmt.Println("Lost packet: The SYNs:", syns)
 		},
 	}
 }
@@ -63,8 +63,8 @@ func (peer *Peer_T)Run() error {
 }
 
 func (peer *Peer_T)read() {
-	data := make([]byte, 512)
 	for {
+		data := make([]byte, 512, 512)
 		n, remoteAddr, err := peer.Conn.ReadFromUDP(data)
 		if err != nil {
 			log.Println("error during read:", err)
@@ -280,7 +280,6 @@ func (peer *Peer_T)Transport(rAddr *net.UDPAddr, data []byte) (string, error) {
 	hash := md5.Sum(data)
 
 	key := fmt.Sprintf("%x", hash)
-	fmt.Println(key)
 
 	length := len(data)
 	if(length > 2078764170780) { // 2078764170780 = math.MaxUint32 * 484, 484 is each packet's body length
@@ -302,9 +301,11 @@ func (peer *Peer_T)Transport(rAddr *net.UDPAddr, data []byte) (string, error) {
 
 	for i := 0; i < packetNum; i++ {
 		// for packet losing test
+		/*
 		if i == 3 || i == 5 {
 			continue
 		}
+		*/
 
 		start := i * PACKET_LEN
 		end := start + PACKET_LEN

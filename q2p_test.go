@@ -103,7 +103,8 @@ OUTER:
 
 func callback(peer *Peer_T, rAddr *net.UDPAddr, key string, data []byte) {
 	fmt.Println("Succeeded transmission hash:", key)
-	fmt.Println("Received data:", string(data))
+//	fmt.Println("Received data:", string(data))
+	delete(transmissionCache, key)
 }
 
 func callbackFailed(peer *Peer_T, rAddr *net.UDPAddr, key string, syns []uint32) {
