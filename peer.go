@@ -15,15 +15,16 @@ import (
 const PACKET_LEN = 484
 
 type Peer_T struct {
-	IP string `json:"ip"` // Host address where the node starts. The default is 0.0.0.0
+	IP string `json:"ip"` // Host IP where the node starts. The default is 0.0.0.0
 	Port int `json:"port"` // Port where the node starts. The default is 10000.
 	RemoteSeeds map[string]bool `json:"remote_seeds"` // List of seed nodes. The default is empty.
 	NetworkID uint16 `json:"network_id"`
 	Conn *net.UDPConn `json:"conn"`
 	TimeSendLost int `json:"time_send_again"` // How often the receiver checks for lost packets. If there are lost packets, it will inform the sender. The default value is 5(SECs).
 	Timeout int `json:"timeout"` // Timeout for the receiver to wait for complete data. If it times out, it will inform the sender. The default value is 5(SECs).
-	Callback func(*Peer_T, *net.UDPAddr, string, []byte) `json:"-"` // Callback function executed when complete data is received. The default function member is to type success transmission HASH.
-	CallbackFailed func(*Peer_T, *net.UDPAddr, string, []uint32) `json:"-"` // Callback function executed upon failure. If the length of the last parameter is 0, it indicates a timeout; otherwise, it represents the SYN position where the packet was lost. The default function member is to type timeout transmission HASH or lost transmission HASH that lost packet in with SYNs' positions.
+	LifeCycle func(*Peer_T, *net.UDPAddr, int) `json:"-"` // LifeCycle function executed when the events: JOIN, CONNECT, CONNECTED, STARTRUN triggered.
+	Successed func(*Peer_T, *net.UDPAddr, string, []byte) `json:"-"` // Successed function executed when complete data is received. The default function member is to type success transmission HASH.
+	Failed func(*Peer_T, *net.UDPAddr, string, []uint32) `json:"-"` // Failed function executed upon failure. If the length of the last parameter is 0, it indicates a timeout; otherwise, it represents the SYN position where the packet was lost. The default function member is to type timeout transmission HASH or lost transmission HASH that lost packet in with SYNs' positions.
 }
 
 // Create a new peer
@@ -32,6 +33,9 @@ type Peer_T struct {
 func NewPeer(ip string, port int, rAddrs map[string]bool, networkID uint16) *Peer_T {
 	return &Peer_T {
 		ip, port, rAddrs, networkID, nil, 6, 5,
+		func(peer *Peer_T, rAddr *net.UDPAddr, event int) {
+			fmt.Println("on life cycle", EventName[event], ":", rAddr.String())
+		},
 		func(peer *Peer_T, rAddr *net.UDPAddr, key string, body []byte) {
 			fmt.Println("Succeeded transmission hash:", key)
 		},
@@ -99,6 +103,8 @@ func (peer *Peer_T)join() {
 		if err != nil {
 			log.Println(err)
 		}
+
+		peer.LifeCycle(peer, seedAddr, -1)
 	}
 }
 

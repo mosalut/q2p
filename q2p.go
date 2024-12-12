@@ -29,6 +29,8 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 		if(len(peer.RemoteSeeds) < connection_num) {
 			peer.RemoteSeeds[rAddr.String()] = false
 		}
+
+		peer.LifeCycle(peer, rAddr, int(event))
 	case TOUCHREQUEST:
 		log.Println("event: TOUCHREQUEST")
 		if(len(peer.RemoteSeeds) >= connection_num) {
@@ -72,10 +74,12 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 		peer.RemoteSeeds[rAddr.String()] = false
 
 		peer.connected(rAddr)
+		peer.LifeCycle(peer, rAddr, int(event))
 	case CONNECTED:
 		log.Println("event: CONNECTED")
 		log.Println("from:", rAddr.String())
 		peer.RemoteSeeds[rAddr.String()] = false
+		peer.LifeCycle(peer, rAddr, int(event))
 	case CONNECT_FAILED:
 		log.Println("event: CONNECT_FAILED")
 		log.Println("from:", rAddr.String())
@@ -102,6 +106,9 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 			go transmissionReceiving(transmissionCTXM[key].ctx, peer, hash, rAddr.String())
 
 			packetNum := length / 484
+			if length % 484 != 0 {
+				packetNum += 1
+			}
 			transmissionRSYNS[key] = make(map[uint32]bool)
 
 			for i := 0; i < int(packetNum); i++ {
@@ -118,20 +125,18 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 		start := int(syn) * 484
 		end := int(start) + len(data[28:])
 
+		/*
 		if len(transmissionR[key]) == 0 {
 			break
 		}
+		*/
 
 		copy(transmissionR[key][start:end], data[28:])
 
-		if len(transmissionRSYNS[key]) == 0 {
-			break
-		}
-
 		delete(transmissionRSYNS[key], syn)
 
-		if(len(transmissionRSYNS[key]) == 0) {
-			go peer.Callback(peer, rAddr, key, transmissionR[key])
+		if len(transmissionRSYNS[key]) == 0 {
+			go peer.Successed(peer, rAddr, key, transmissionR[key])
 			transmissionCTXM[key].cancel()
 		}
 
@@ -152,7 +157,7 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 			syns = append(syns, syn)
 		}
 
-		peer.CallbackFailed(peer, rAddr, key, syns)
+		peer.Failed(peer, rAddr, key, syns)
 	case TEST:
 		log.Println("event: TEST")
 	default:

@@ -22,3 +22,12 @@ const (
 	TRANSPORT_FAILED
 	TEST
 )
+
+const STARTRUN = -1
+
+var EventName = map[int]string {
+	STARTRUN: "STARTRUN",
+	JOIN: "JOIN",
+	CONNECT: "CONNECT",
+	CONNECTED: "CONNECTED",
+}
