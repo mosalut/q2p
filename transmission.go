@@ -13,6 +13,7 @@ type ctx_T struct {
 	cancel context.CancelFunc
 }
 
+var transmissionS = make(map[string][]byte) // Senders' data
 var transmissionR = make(map[string][]byte) // Receivers' data
 var transmissionRSYNS = make(map[string]map[uint32]bool) // Receivers' data SYNs
 var transmissionCTXM = make(map[string]*ctx_T)

@@ -84,18 +84,22 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 		log.Println("event: CONNECT_FAILED")
 		log.Println("from:", rAddr.String())
 		log.Println("Network error:", rAddr.String(), string(data[4:]))
-	case TRANSPORT:
+	case OPTIONS:
+		if len(data) != 24 {
+			break
+		}
+
 		event := binary.LittleEndian.Uint16(data[2:4])
 
-		log.Println("event: TRANSPORT", event)
+		log.Println("event: OPTIONS", event)
 		log.Println("from:", rAddr.String())
 
 		hash := data[4:20]
 		length := binary.LittleEndian.Uint32(data[20:24])
-		syn := binary.LittleEndian.Uint32(data[24:28])
 
 		key := fmt.Sprintf("%x", hash)
 
+		// TODO issue?
 		_, ok := transmissionR[key]
 		if !ok {
 			transmissionR[key] = make([]byte, length, length)
@@ -116,22 +120,47 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 			}
 		}
 
+		peer.optionsFeedback(rAddr, hash)
+
+	case OPTIONSFEEDBACK:
+		if len(data) != 20 {
+			break
+		}
+
+		event := binary.LittleEndian.Uint16(data[2:4])
+
+		log.Println("event: OPTIONSFEEDBACK", event)
+		log.Println("from:", rAddr.String())
+
+		hash := data[4:20]
+
+		peer.transfer(rAddr, hash)
+
+	case TRANSPORT:
+		if len(data) < 24 {
+			break
+		}
+
+		event := binary.LittleEndian.Uint16(data[2:4])
+
+		log.Println("event: TRANSPORT", event)
+		log.Println("from:", rAddr.String())
+
+		hash := data[4:20]
+		syn := binary.LittleEndian.Uint32(data[20:24])
+
+		key := fmt.Sprintf("%x", hash)
+
 		/*
-		fmt.Println("length:", length)
+		fmt.Println("data length:", len(data))
 		fmt.Println("syn:", syn)
-		fmt.Println("length:", len(data[28:]))
+		fmt.Println("length:", len(data[24:]))
 		*/
 
 		start := int(syn) * 484
-		end := int(start) + len(data[28:])
+		end := int(start) + len(data[24:])
 
-		/*
-		if len(transmissionR[key]) == 0 {
-			break
-		}
-		*/
-
-		copy(transmissionR[key][start:end], data[28:])
+		copy(transmissionR[key][start:end], data[24:])
 
 		delete(transmissionRSYNS[key], syn)
 
