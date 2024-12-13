@@ -14,17 +14,27 @@ import (
 
 const PACKET_LEN = 484
 
+// IP: Host's IP where the node starts. The default is 0.0.0.0
+// Port: where the node starts. The default is 10000.
+// RemoteSeeds: List of seed nodes. The default is empty.
+// NetworkID: Network ID number.
+// Conn: The peer listener.
+// TimeSendLost: How often the receiver checks for lost packets. If there are lost packets, it will inform the sender. The default value is 5(SECs).
+// Timeout: For the receiver to wait for complete data. If it times out, it will inform the sender. The default value is 5(SECs).
+// LifeCycle: The function executed when the events: JOIN, CONNECT, CONNECTED, STARTRUN triggered.
+// Successed: The function executed when complete data is received. The default function member is to type success transmission HASH.
+// Failed: The function executed upon failure. If the length of the last parameter is 0, it indicates a timeout; otherwise, it represents the SYN position where the packet was lost. The default function member is to type timeout transmission HASH or lost transmission HASH that lost packet in with SYNs' positions.
 type Peer_T struct {
-	IP string `json:"ip"` // Host IP where the node starts. The default is 0.0.0.0
-	Port int `json:"port"` // Port where the node starts. The default is 10000.
-	RemoteSeeds map[string]bool `json:"remote_seeds"` // List of seed nodes. The default is empty.
+	IP string `json:"ip"`
+	Port int `json:"port"`
+	RemoteSeeds map[string]bool `json:"remote_seeds"`
 	NetworkID uint16 `json:"network_id"`
 	Conn *net.UDPConn `json:"conn"`
-	TimeSendLost int `json:"time_send_again"` // How often the receiver checks for lost packets. If there are lost packets, it will inform the sender. The default value is 5(SECs).
-	Timeout int `json:"timeout"` // Timeout for the receiver to wait for complete data. If it times out, it will inform the sender. The default value is 5(SECs).
-	LifeCycle func(*Peer_T, *net.UDPAddr, int) `json:"-"` // LifeCycle function executed when the events: JOIN, CONNECT, CONNECTED, STARTRUN triggered.
-	Successed func(*Peer_T, *net.UDPAddr, string, []byte) `json:"-"` // Successed function executed when complete data is received. The default function member is to type success transmission HASH.
-	Failed func(*Peer_T, *net.UDPAddr, string, []uint32) `json:"-"` // Failed function executed upon failure. If the length of the last parameter is 0, it indicates a timeout; otherwise, it represents the SYN position where the packet was lost. The default function member is to type timeout transmission HASH or lost transmission HASH that lost packet in with SYNs' positions.
+	TimeSendLost int `json:"time_send_again"`
+	Timeout int `json:"timeout"`
+	LifeCycle func(*Peer_T, *net.UDPAddr, int) `json:"-"`
+	Successed func(*Peer_T, *net.UDPAddr, string, []byte) `json:"-"`
+	Failed func(*Peer_T, *net.UDPAddr, string, []uint32) `json:"-"`
 }
 
 // Create a new peer
