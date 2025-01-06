@@ -146,7 +146,6 @@ func (peer *Peer_T)touchRequest(rAddr3 *net.UDPAddr) {
 			log.Println(err)
 		}
 	}
-
 }
 
 func (peer *Peer_T)touch(rAddr, rAddr3 *net.UDPAddr) {
@@ -254,7 +253,9 @@ func (peer *Peer_T)Transport(rAddr *net.UDPAddr, data []byte) (string, error) {
 
 	hash := md5.Sum(data)
 	key := fmt.Sprintf("%x", hash)
+	mutex.Lock()
 	transmissionS[key] = data
+	mutex.Unlock()
 
 	/*
 	packetNum := length / PACKET_LEN
@@ -297,7 +298,9 @@ func (peer *Peer_T)transfer(rAddr *net.UDPAddr, hash []byte) {
 	header := peer.spliceHeader(TRANSPORT)
 
 	key := fmt.Sprintf("%x", hash)
+	mutex.Lock()
 	data := transmissionS[key]
+	mutex.Unlock()
 
 	length := len(data)
 	packetNum := length / PACKET_LEN
@@ -344,7 +347,9 @@ func (peer *Peer_T)transfer(rAddr *net.UDPAddr, hash []byte) {
 		}
 	}
 
+	mutex.Lock()
 	delete(transmissionS, key)
+	mutex.Unlock()
 }
 
 func (peer *Peer_T)transportFailed(rAddr *net.UDPAddr, hash []byte, syns []uint32) {

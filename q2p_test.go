@@ -1,6 +1,7 @@
 package q2p
 
 import (
+	"sync"
 	"testing"
 	"syscall"
 	"os"
@@ -21,6 +22,7 @@ type cmdFlag_T struct {
 
 var cmdFlag *cmdFlag_T
 var transmissionCache = make(map[string][]byte)
+var mutex0 = &sync.Mutex{}
 
 func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -83,7 +85,10 @@ func lifeCycle(peer *Peer_T, rAddr *net.UDPAddr, event int) {
 	fmt.Println("on life cycle", EventName[event], ":", rAddr.String())
 	switch event {
 	case STARTRUN:
-		data := []byte("\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission\nHello, transmission")
+		line := []byte("\nHello, transmission")
+		data := []byte("")
+
+/*
 		key, err := peer.Transport(rAddr, data)
 		if err != nil {
 			log.Println(err, key)
@@ -91,13 +96,31 @@ func lifeCycle(peer *Peer_T, rAddr *net.UDPAddr, event int) {
 		log.Println("returned returned returned returned returned returned returned returned returned")
 
 		transmissionCache[key] = data
+		*/
+
+		for {
+			for i := 0; i < 100; i++ {
+				data = append(data, line...)
+			}
+
+			key, err := peer.Transport(rAddr, data)
+			if err != nil {
+				log.Println(err, key)
+			}
+			log.Println("returned returned returned returned returned returned returned returned returned")
+			mutex0.Lock()
+			transmissionCache[key] = data
+			mutex0.Unlock()
+		}
 	}
 }
 
 func successed(peer *Peer_T, rAddr *net.UDPAddr, key string, data []byte) {
 	fmt.Println("Successed transmission hash:", key)
 	fmt.Println("Received data:", string(data))
+	mutex0.Lock()
 	delete(transmissionCache, key)
+	mutex0.Unlock()
 }
 
 func failed(peer *Peer_T, rAddr *net.UDPAddr, key string, syns []uint32) {
@@ -107,7 +130,9 @@ func failed(peer *Peer_T, rAddr *net.UDPAddr, key string, syns []uint32) {
 	}
 
 	fmt.Println("Lost packet: The hash in transmission:", key)
+	mutex0.Lock()
 	data := transmissionCache[key]
+	mutex0.Unlock()
 
 	var start int
 	var end int
@@ -158,7 +183,9 @@ func TestTransport10001(t *testing.T) {
 		t.Error(err, addr)
 	}
 	t.Log("returned returned returned returned returned returned returned returned returned")
+	mutex0.Lock()
 	transmissionCache[key] = data
+	mutex0.Unlock()
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)

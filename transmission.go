@@ -1,6 +1,7 @@
 package q2p
 
 import (
+	"sync"
 	"net"
 	"context"
 	"time"
@@ -17,6 +18,8 @@ var transmissionS = make(map[string][]byte) // Senders' data
 var transmissionR = make(map[string][]byte) // Receivers' data
 var transmissionRSYNS = make(map[string]map[uint32]bool) // Receivers' data SYNs
 var transmissionCTXM = make(map[string]*ctx_T)
+
+var mutex = &sync.RWMutex{}
 
 func transmissionSending(ctx context.Context, key, addr string) {
 	log.Println("transmissionSending called")
@@ -36,6 +39,7 @@ func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr 
 	for {
 		select {
 		case <-ctx.Done():
+			mutex.Lock()
 			if len(transmissionRSYNS[key]) != 0 {
 				log.Println("transport failed")
 
@@ -43,6 +47,7 @@ func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr 
 				if err != nil {
 					log.Println(err)
 					log.Println("transmissionReceiving Done timeout")
+					mutex.Unlock()
 					return
 				}
 
@@ -51,6 +56,7 @@ func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr 
 			delete(transmissionR, key)
 			delete(transmissionRSYNS, key)
 			delete(transmissionCTXM, key)
+			mutex.Unlock()
 			log.Println(key, addr, "recieving over")
 			log.Println(ctx.Err())
 
@@ -59,6 +65,7 @@ func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr 
 		default:
 			time.Sleep(time.Second * time.Duration(peer.TimeSendLost))
 			log.Println("RSYNS length:", len(transmissionRSYNS[key]))
+			mutex.Lock()
 			if len(transmissionRSYNS[key]) != 0 {
 				log.Println("Packet lost")
 
@@ -70,11 +77,13 @@ func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr 
 				rAddr, err := net.ResolveUDPAddr("udp", addr)
 				if err != nil {
 					log.Println(err)
+					mutex.Unlock()
 					return
 				}
 
 				peer.transportFailed(rAddr, hash, syns)
 			}
+			mutex.Unlock()
 		}
 	}
 }

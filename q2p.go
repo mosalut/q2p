@@ -100,6 +100,7 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 		key := fmt.Sprintf("%x", hash)
 
 		// TODO issue?
+		mutex.Lock()
 		_, ok := transmissionR[key]
 		if !ok {
 			transmissionR[key] = make([]byte, length, length)
@@ -119,6 +120,7 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 				transmissionRSYNS[key][uint32(i)] = false
 			}
 		}
+		mutex.Unlock()
 
 		peer.optionsFeedback(rAddr, hash)
 
@@ -151,15 +153,18 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 
 		key := fmt.Sprintf("%x", hash)
 
-		/*
 		fmt.Println("data length:", len(data))
 		fmt.Println("syn:", syn)
 		fmt.Println("length:", len(data[24:]))
-		*/
 
 		start := int(syn) * 484
 		end := int(start) + len(data[24:])
 
+		mutex.Lock()
+		if len(transmissionR[key]) < end {
+			mutex.Unlock()
+			break
+		}
 		copy(transmissionR[key][start:end], data[24:])
 
 		delete(transmissionRSYNS[key], syn)
@@ -168,6 +173,7 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 			go peer.Successed(peer, rAddr, key, transmissionR[key])
 			transmissionCTXM[key].cancel()
 		}
+		mutex.Unlock()
 
 	case TRANSPORT_FAILED:
 		event := binary.LittleEndian.Uint16(data[2:4])
