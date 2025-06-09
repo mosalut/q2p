@@ -8,8 +8,6 @@ import (
 	"net"
 	"errors"
 	"time"
-	"fmt"
-	"log"
 )
 
 const PACKET_LEN = 484
@@ -44,19 +42,19 @@ func NewPeer(ip string, port int, rAddrs map[string]bool, networkID uint16) *Pee
 	return &Peer_T {
 		ip, port, rAddrs, networkID, nil, 6, 5,
 		func(peer *Peer_T, rAddr *net.UDPAddr, event int) {
-			fmt.Println("on life cycle", EventName[event], ":", rAddr.String())
+			print(log_info, "on life cycle", EventName[event], ":", rAddr.String())
 		},
 		func(peer *Peer_T, rAddr *net.UDPAddr, key string, body []byte) {
-			fmt.Println("Succeeded transmission hash:", key)
+			print(log_info, "Succeeded transmission hash:", key)
 		},
 		func(peer *Peer_T, rAddr *net.UDPAddr, key string, syns []uint32) {
 			if len(syns) == 0 {
-				fmt.Println("transmission Failed, timeout, hash:", key)
+				print(log_error, "transmission Failed, timeout, hash:", key)
 				return
 			}
 
-			fmt.Println("Lost packet: The hash in transmission:", key)
-			fmt.Println("Lost packet: The SYNs:", syns)
+			print(log_warning, "Lost packet: The hash in transmission:", key)
+			print(log_warning, "Lost packet: The SYNs:", syns)
 		},
 	}
 }
@@ -81,11 +79,11 @@ func (peer *Peer_T)read() {
 		data := make([]byte, 512, 512)
 		n, remoteAddr, err := peer.Conn.ReadFromUDP(data)
 		if err != nil {
-			log.Println("error during read:", err)
+			print(log_error, "error during read:", err)
 		}
 
 		if n < 4 {
-			log.Println("Invalid q2p header length")
+			print(log_error, "Invalid q2p header length")
 			continue
 		}
 
@@ -111,16 +109,16 @@ func (peer *Peer_T)join() {
 	for seed, _ := range peer.RemoteSeeds {
 		seedAddr, err := net.ResolveUDPAddr("udp", seed)
 		if err != nil {
-			log.Println(err)
+			print(log_error, err)
 			continue
 		}
 
 		_, err = peer.Conn.WriteToUDP(header, seedAddr)
 		if err != nil {
-			log.Println(err)
+			print(log_error, err)
 		}
 
-		peer.LifeCycle(peer, seedAddr, -1)
+		peer.LifeCycle(peer, seedAddr, STARTRUN)
 	}
 }
 
@@ -130,20 +128,20 @@ func (peer *Peer_T)touchRequest(rAddr3 *net.UDPAddr) {
 	data := append(header, []byte(rAddr3.String())...)
 
 	for seed, _ := range peer.RemoteSeeds {
-		log.Println("seed:", seed)
+		print(log_error, "seed:", seed)
 		if seed == rAddr3.String() {
 			continue
 		}
 
 		seedAddr, err := net.ResolveUDPAddr("udp", seed)
 		if err != nil {
-			log.Println(err)
+			print(log_error, err)
 			continue
 		}
 
 		_, err = peer.Conn.WriteToUDP(data, seedAddr)
 		if err != nil {
-			log.Println(err)
+			print(log_error, err)
 		}
 	}
 }
@@ -153,7 +151,7 @@ func (peer *Peer_T)touch(rAddr, rAddr3 *net.UDPAddr) {
 
 	_, err := peer.Conn.WriteToUDP(header, rAddr3)
 	if err != nil {
-		log.Println(err)
+		print(log_error, err)
 	}
 
 	header = peer.spliceHeader(TOUCHED)
@@ -162,7 +160,7 @@ func (peer *Peer_T)touch(rAddr, rAddr3 *net.UDPAddr) {
 
 	_, err = peer.Conn.WriteToUDP(data, rAddr)
 	if err != nil {
-		log.Println(err)
+		print(log_error, err)
 	}
 }
 
@@ -177,7 +175,7 @@ func (peer *Peer_T)connectRequest(rAddr2, rAddr3 *net.UDPAddr) {
 
 	_, err := peer.Conn.WriteToUDP(data, rAddr3)
 	if err != nil {
-		log.Println(err)
+		print(log_error, err)
 	}
 }
 
@@ -186,7 +184,7 @@ func (peer *Peer_T)connect(rAddr2 *net.UDPAddr) {
 
 	_, err := peer.Conn.WriteToUDP(header, rAddr2)
 	if err != nil {
-		log.Println(err)
+		print(log_error, err)
 	}
 }
 
@@ -195,7 +193,7 @@ func (peer *Peer_T)connected(rAddr3 *net.UDPAddr) {
 
 	_, err := peer.Conn.WriteToUDP(header, rAddr3)
 	if err != nil {
-		log.Println(err)
+		print(log_error, err)
 	}
 }
 
@@ -206,7 +204,7 @@ func (peer *Peer_T)connectFailed(rAddr *net.UDPAddr, message []byte) {
 
 	_, err := peer.Conn.WriteToUDP(data, rAddr)
 	if err != nil {
-		log.Println(err)
+		print(log_error, err)
 	}
 }
 
@@ -216,7 +214,7 @@ func (peer *Peer_T)connectFailed(rAddr *net.UDPAddr, message []byte) {
 // `syn` is the packet's SYN.
 // `body` is the body for resend.
 func (peer *Peer_T)TransportAPacket(rAddr *net.UDPAddr, key string, syn uint32, body []byte) error {
-	log.Println("send again:", key, syn)
+	print(log_info, "send again:", key, syn)
 	header := peer.spliceHeader(TRANSPORT)
 
 	hash, err := hex.DecodeString(key)
@@ -252,7 +250,7 @@ func (peer *Peer_T)Transport(rAddr *net.UDPAddr, data []byte) (string, error) {
 	header := peer.spliceHeader(OPTIONS)
 
 	hash := md5.Sum(data)
-	key := fmt.Sprintf("%x", hash)
+	key := hex.EncodeToString(hash[:])
 	mutex.Lock()
 	transmissionS[key] = data
 	mutex.Unlock()
@@ -274,7 +272,7 @@ func (peer *Peer_T)Transport(rAddr *net.UDPAddr, data []byte) (string, error) {
 	transmission := append(header, transmissionHead...)
 	_, err := peer.Conn.WriteToUDP(transmission, rAddr)
 	if err != nil {
-		log.Println(err)
+		print(log_error, err)
 	}
 
 	ctx, _ := context.WithTimeout(context.TODO(), time.Second * time.Duration(peer.Timeout))
@@ -290,14 +288,14 @@ func (peer *Peer_T)optionsFeedback(rAddr *net.UDPAddr, hash []byte) {
 	transmission := append(header, hash...)
 	_, err := peer.Conn.WriteToUDP(transmission, rAddr)
 	if err != nil {
-		log.Println(err)
+		print(log_error, err)
 	}
 }
 
 func (peer *Peer_T)transfer(rAddr *net.UDPAddr, hash []byte) {
 	header := peer.spliceHeader(TRANSPORT)
 
-	key := fmt.Sprintf("%x", hash)
+	key := hex.EncodeToString(hash)
 	mutex.Lock()
 	data := transmissionS[key]
 	mutex.Unlock()
@@ -330,8 +328,8 @@ func (peer *Peer_T)transfer(rAddr *net.UDPAddr, hash []byte) {
 
 		// SYN
 		/*
-		log.Println("body length:", len(body))
-		log.Println("syn:", i)
+		print(log_debug, "body length:", len(body))
+		print(log_debug, "syn:", i)
 		*/
 		binary.LittleEndian.PutUint32(bs, uint32(i))
 		copy(transmissionHead[16:], bs)
@@ -339,11 +337,11 @@ func (peer *Peer_T)transfer(rAddr *net.UDPAddr, hash []byte) {
 
 		transm := append(transmissionHead, body...)
 		transmission := append(header, transm...)
-	//	log.Println("length:", len(transmission))
-	//	fmt.Println(transmissionHead[16:])
+	//	print(log_debug, "length:", len(transmission))
+	//	print(log_debug, transmissionHead[16:])
 		_, err := peer.Conn.WriteToUDP(transmission, rAddr)
 		if err != nil {
-			log.Println(err)
+			print(log_error, err)
 		}
 	}
 
@@ -365,6 +363,6 @@ func (peer *Peer_T)transportFailed(rAddr *net.UDPAddr, hash []byte, syns []uint3
 	transmission := append(header, body...)
 	_, err := peer.Conn.WriteToUDP(transmission, rAddr)
 	if err != nil {
-		log.Println(err)
+		print(log_error, err)
 	}
 }

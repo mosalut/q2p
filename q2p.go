@@ -2,19 +2,18 @@ package q2p
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"context"
 	"net"
 	"time"
-	"fmt"
-	"log"
 )
 
 func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 	networkID := binary.LittleEndian.Uint16(data[:2])
 	event := binary.LittleEndian.Uint16(data[2:4])
 
-	log.Println("Remote networkID =", networkID)
-	log.Println("event =", event)
+	print(log_info, "Remote networkID =", networkID)
+	print(log_info, "event =", event)
 
 	if networkID != peer.NetworkID && event != CONNECT_FAILED {
 		peer.connectFailed(rAddr, []byte("Dismatch networking version"))
@@ -23,7 +22,7 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 
 	switch event {
 	case JOIN:
-		log.Println("event: JOIN")
+		print(log_info, "event: JOIN")
 
 		peer.touchRequest(rAddr)
 		if(len(peer.RemoteSeeds) < connection_num) {
@@ -32,58 +31,58 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 
 		peer.LifeCycle(peer, rAddr, int(event))
 	case TOUCHREQUEST:
-		log.Println("event: TOUCHREQUEST")
+		print(log_info, "event: TOUCHREQUEST")
 		if(len(peer.RemoteSeeds) >= connection_num) {
-			log.Println("The connection number upper limit has been reached")
+			print(log_warning, "The connection number upper limit has been reached")
 			break
 		}
-		log.Println("rAddr3:", string(data[4:]))
+		print(log_info, "rAddr3:", string(data[4:]))
 		rAddr3, err := net.ResolveUDPAddr("udp", string(data[4:]))
 		if err != nil {
-			log.Println(err)
+			print(log_error, err)
 		}
 
 		peer.touch(rAddr, rAddr3)
 	case TOUCH:
-		log.Println("event: TOUCH")
+		print(log_info, "event: TOUCH")
 	case TOUCHED:
-		log.Println("event: TOUCHED")
-		log.Println("rAddr3:", string(data[4:]))
+		print(log_info, "event: TOUCHED")
+		print(log_info, "rAddr3:", string(data[4:]))
 		rAddr3, err := net.ResolveUDPAddr("udp", string(data[4:]))
 		if err != nil {
-			log.Println(err)
+			print(log_error, err)
 		}
 
 		peer.connectRequest(rAddr, rAddr3) // here rAddr is rAddr2
 	case CONNECTREQUEST:
-		log.Println("event: CONNECTREQUEST")
+		print(log_info, "event: CONNECTREQUEST")
 		if(len(peer.RemoteSeeds) >= connection_num) {
-			log.Println("The connection number upper limit has been reached")
+			print(log_warning, "The connection number upper limit has been reached")
 			break
 		}
-		log.Println("rAddr2:", string(data[4:]))
+		print(log_info, "rAddr2:", string(data[4:]))
 		rAddr2, err := net.ResolveUDPAddr("udp", string(data[4:]))
 		if err != nil {
-			log.Println(err)
+			print(log_error, err)
 		}
 
 		peer.connect(rAddr2)
 	case CONNECT:
-		log.Println("event: CONNECT")
-		log.Println("from:", rAddr.String())
+		print(log_info, "event: CONNECT")
+		print(log_info, "from:", rAddr.String())
 		peer.RemoteSeeds[rAddr.String()] = false
 
 		peer.connected(rAddr)
 		peer.LifeCycle(peer, rAddr, int(event))
 	case CONNECTED:
-		log.Println("event: CONNECTED")
-		log.Println("from:", rAddr.String())
+		print(log_info, "event: CONNECTED")
+		print(log_info, "from:", rAddr.String())
 		peer.RemoteSeeds[rAddr.String()] = false
 		peer.LifeCycle(peer, rAddr, int(event))
 	case CONNECT_FAILED:
-		log.Println("event: CONNECT_FAILED")
-		log.Println("from:", rAddr.String())
-		log.Println("Network error:", rAddr.String(), string(data[4:]))
+		print(log_error, "event: CONNECT_FAILED")
+		print(log_error, "from:", rAddr.String())
+		print(log_error, "Network error:", rAddr.String(), string(data[4:]))
 	case OPTIONS:
 		if len(data) != 24 {
 			break
@@ -91,13 +90,13 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 
 		event := binary.LittleEndian.Uint16(data[2:4])
 
-		log.Println("event: OPTIONS", event)
-		log.Println("from:", rAddr.String())
+		print(log_info, "event: OPTIONS", event)
+		print(log_info, "from:", rAddr.String())
 
 		hash := data[4:20]
 		length := binary.LittleEndian.Uint32(data[20:24])
 
-		key := fmt.Sprintf("%x", hash)
+		key := hex.EncodeToString(hash)
 
 		// TODO issue?
 		mutex.Lock()
@@ -131,8 +130,8 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 
 		event := binary.LittleEndian.Uint16(data[2:4])
 
-		log.Println("event: OPTIONSFEEDBACK", event)
-		log.Println("from:", rAddr.String())
+		print(log_info, "event: OPTIONSFEEDBACK", event)
+		print(log_info, "from:", rAddr.String())
 
 		hash := data[4:20]
 
@@ -145,17 +144,19 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 
 		event := binary.LittleEndian.Uint16(data[2:4])
 
-		log.Println("event: TRANSPORT", event)
-		log.Println("from:", rAddr.String())
+		print(log_info, "event: TRANSPORT", event)
+		print(log_info, "from:", rAddr.String())
 
 		hash := data[4:20]
 		syn := binary.LittleEndian.Uint32(data[20:24])
 
-		key := fmt.Sprintf("%x", hash)
+		key := hex.EncodeToString(hash)
 
-		fmt.Println("data length:", len(data))
-		fmt.Println("syn:", syn)
-		fmt.Println("length:", len(data[24:]))
+		/*
+		print(log_debug, "data length:", len(data))
+		print(log_debug, "syn:", syn)
+		print(log_debug, "length:", len(data[24:]))
+		*/
 
 		start := int(syn) * 484
 		end := int(start) + len(data[24:])
@@ -177,11 +178,11 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 
 	case TRANSPORT_FAILED:
 		event := binary.LittleEndian.Uint16(data[2:4])
-		log.Println("event: TRANSPORT FAILED", event)
-		log.Println("from:", rAddr.String())
+		print(log_error, "event: TRANSPORT FAILED", event)
+		print(log_error, "from:", rAddr.String())
 
 		hash := data[4:20]
-		key := fmt.Sprintf("%x", hash)
+		key := hex.EncodeToString(hash)
 
 		lengthOfSyns := (len(data) - 20) / 4
 		syns := make([]uint32, 0, lengthOfSyns)
@@ -194,9 +195,9 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 
 		peer.Failed(peer, rAddr, key, syns)
 	case TEST:
-		log.Println("event: TEST")
+		print(log_info, "event: TEST")
 	default:
-		log.Println(event)
-		log.Println("Undefined event")
+		print(log_warning, event)
+		print(log_warning, "Undefined event")
 	}
 }

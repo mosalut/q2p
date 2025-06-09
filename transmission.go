@@ -1,12 +1,11 @@
 package q2p
 
 import (
+	"encoding/hex"
 	"sync"
 	"net"
 	"context"
 	"time"
-	"fmt"
-	"log"
 )
 
 type ctx_T struct {
@@ -22,31 +21,31 @@ var transmissionCTXM = make(map[string]*ctx_T)
 var mutex = &sync.RWMutex{}
 
 func transmissionSending(ctx context.Context, key, addr string) {
-	log.Println("transmissionSending called")
+	print(log_info, "transmissionSending called")
 	select {
 	case <-ctx.Done():
-		log.Println("transmissionSending Done")
-		log.Println(ctx.Err())
-		log.Println(key, addr, "transport over")
+		print(log_info, "transmissionSending Done")
+		print(log_error, ctx.Err())
+		print(log_info, key, addr, "transport over")
 	}
 }
 
 func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr string) {
-	log.Println("transmissionReceiving called")
+	print(log_info, "transmissionReceiving called")
 
-	key := fmt.Sprintf("%x", hash)
+	key := hex.EncodeToString(hash)
 
 	for {
 		select {
 		case <-ctx.Done():
 			mutex.Lock()
 			if len(transmissionRSYNS[key]) != 0 {
-				log.Println("transport failed")
+				print(log_warning, "transport failed")
 
 				rAddr, err := net.ResolveUDPAddr("udp", addr)
 				if err != nil {
-					log.Println(err)
-					log.Println("transmissionReceiving Done timeout")
+					print(log_error, err)
+					print(log_error, "transmissionReceiving Done timeout")
 					mutex.Unlock()
 					return
 				}
@@ -57,17 +56,17 @@ func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr 
 			delete(transmissionRSYNS, key)
 			delete(transmissionCTXM, key)
 			mutex.Unlock()
-			log.Println(key, addr, "recieving over")
-			log.Println(ctx.Err())
+			print(log_info, key, addr, "recieving over")
+			print(log_error, ctx.Err())
 
-			log.Println("transmissionReceiving Done")
+			print(log_info, "transmissionReceiving Done")
 			return
 		default:
 			time.Sleep(time.Second * time.Duration(peer.TimeSendLost))
-			log.Println("RSYNS length:", len(transmissionRSYNS[key]))
+			print(log_debug, "RSYNS length:", len(transmissionRSYNS[key]))
 			mutex.Lock()
 			if len(transmissionRSYNS[key]) != 0 {
-				log.Println("Packet lost")
+				print(log_warning, "Packet lost")
 
 				syns := make([]uint32, 0, len(transmissionRSYNS[key]))
 				for k, _ := range transmissionRSYNS[key] {
@@ -76,7 +75,7 @@ func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr 
 
 				rAddr, err := net.ResolveUDPAddr("udp", addr)
 				if err != nil {
-					log.Println(err)
+					print(log_error, err)
 					mutex.Unlock()
 					return
 				}

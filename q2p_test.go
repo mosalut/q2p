@@ -9,8 +9,6 @@ import (
 	"flag"
 	"net"
 	"time"
-	"log"
-	"fmt"
 )
 
 type cmdFlag_T struct {
@@ -25,7 +23,6 @@ var transmissionCache = make(map[string][]byte)
 var mutex0 = &sync.Mutex{}
 
 func init() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	cmdFlag = &cmdFlag_T{}
 	readFlags(cmdFlag)
 	cmdFlag.networkID = 0
@@ -82,7 +79,7 @@ func TestTransport(t *testing.T) {
 }
 
 func lifeCycle(peer *Peer_T, rAddr *net.UDPAddr, event int) {
-	fmt.Println("on life cycle", EventName[event], ":", rAddr.String())
+	print(log_info, "on life cycle", EventName[event], ":", rAddr.String())
 	switch event {
 	case STARTRUN:
 		line := []byte("\nHello, transmission")
@@ -91,9 +88,9 @@ func lifeCycle(peer *Peer_T, rAddr *net.UDPAddr, event int) {
 /*
 		key, err := peer.Transport(rAddr, data)
 		if err != nil {
-			log.Println(err, key)
+			print(log_debug, err, key)
 		}
-		log.Println("returned returned returned returned returned returned returned returned returned")
+		print(log_debug, "returned returned returned returned returned returned returned returned returned")
 
 		transmissionCache[key] = data
 		*/
@@ -105,9 +102,9 @@ func lifeCycle(peer *Peer_T, rAddr *net.UDPAddr, event int) {
 
 			key, err := peer.Transport(rAddr, data)
 			if err != nil {
-				log.Println(err, key)
+				print(log_error, err, key)
 			}
-			log.Println("returned returned returned returned returned returned returned returned returned")
+			print(log_debug, "returned returned returned returned returned returned returned returned returned")
 			mutex0.Lock()
 			transmissionCache[key] = data
 			mutex0.Unlock()
@@ -116,8 +113,8 @@ func lifeCycle(peer *Peer_T, rAddr *net.UDPAddr, event int) {
 }
 
 func successed(peer *Peer_T, rAddr *net.UDPAddr, key string, data []byte) {
-	fmt.Println("Successed transmission hash:", key)
-	fmt.Println("Received data:", string(data))
+	print(log_info, "Successed transmission hash:", key)
+	print(log_info, "Received data:", string(data))
 	mutex0.Lock()
 	delete(transmissionCache, key)
 	mutex0.Unlock()
@@ -125,11 +122,11 @@ func successed(peer *Peer_T, rAddr *net.UDPAddr, key string, data []byte) {
 
 func failed(peer *Peer_T, rAddr *net.UDPAddr, key string, syns []uint32) {
 	if len(syns) == 0 {
-		fmt.Println("transmission Failed, hash:", key)
+		print(log_warning, "transmission Failed, hash:", key)
 		return
 	}
 
-	fmt.Println("Lost packet: The hash in transmission:", key)
+	print(log_info, "Lost packet: The hash in transmission:", key)
 	mutex0.Lock()
 	data := transmissionCache[key]
 	mutex0.Unlock()
@@ -144,12 +141,12 @@ func failed(peer *Peer_T, rAddr *net.UDPAddr, key string, syns []uint32) {
 			end = start + PACKET_LEN
 		}
 
-	//	fmt.Println("lost SYN:", syn, start, end, "data:", string(data[start:end]))
-		fmt.Println("lost SYN:", syn, start, end)
+	//	print(log_debug, "lost SYN:", syn, start, end, "data:", string(data[start:end]))
+		print(log_debug, "lost SYN:", syn, start, end)
 
 		err := peer.TransportAPacket(rAddr, key, syn, data[start:end])
 		if err != nil {
-			log.Println(err)
+			print(log_error, err)
 		}
 	}
 }
