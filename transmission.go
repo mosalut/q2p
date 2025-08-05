@@ -63,8 +63,8 @@ func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr 
 			return
 		default:
 			time.Sleep(time.Second * time.Duration(peer.TimeSendLost))
-			print(log_debug, "RSYNS length:", len(transmissionRSYNS[key]))
 			mutex.Lock()
+			print(log_debug, "RSYNS length:", len(transmissionRSYNS[key]))
 			if len(transmissionRSYNS[key]) != 0 {
 				print(log_warning, "Packet lost")
 
