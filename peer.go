@@ -249,7 +249,7 @@ func (peer *Peer_T)Transport(rAddr *net.UDPAddr, data []byte) (string, error) {
 
 	header := peer.spliceHeader(OPTIONS)
 
-	hash := md5.Sum(data)
+	hash := md5.Sum(append(data, []byte(rAddr.String())...))
 	key := hex.EncodeToString(hash[:])
 	mutex.Lock()
 	transmissionS[key] = data

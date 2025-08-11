@@ -42,13 +42,7 @@ func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr 
 			if len(transmissionRSYNS[key]) != 0 {
 				print(log_warning, "transport failed")
 
-				rAddr, err := net.ResolveUDPAddr("udp", addr)
-				if err != nil {
-					print(log_error, err)
-					print(log_error, "transmissionReceiving Done timeout")
-					mutex.Unlock()
-					return
-				}
+				rAddr, _ := net.ResolveUDPAddr("udp", addr)
 
 				peer.transportFailed(rAddr, hash, []uint32{})
 			}
@@ -73,12 +67,7 @@ func transmissionReceiving(ctx context.Context, peer *Peer_T, hash []byte, addr 
 					syns = append(syns, k)
 				}
 
-				rAddr, err := net.ResolveUDPAddr("udp", addr)
-				if err != nil {
-					print(log_error, err)
-					mutex.Unlock()
-					return
-				}
+				rAddr, _ := net.ResolveUDPAddr("udp", addr)
 
 				peer.transportFailed(rAddr, hash, syns)
 			}
