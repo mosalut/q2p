@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"context"
+	"sync"
 	"net"
 	"errors"
 	"time"
@@ -26,6 +27,7 @@ type Peer_T struct {
 	IP string `json:"ip"`
 	Port int `json:"port"`
 	RemoteSeeds map[string]bool `json:"remote_seeds"`
+	RemoteSeedsMu sync.RWMutex
 	NetworkID uint16 `json:"network_id"`
 	Conn *net.UDPConn `json:"conn"`
 	TimeSendLost int `json:"time_send_again"`
@@ -40,14 +42,19 @@ type Peer_T struct {
 //	* see Peer_T's members
 func NewPeer(ip string, port int, rAddrs map[string]bool, networkID uint16) *Peer_T {
 	return &Peer_T {
-		ip, port, rAddrs, networkID, nil, 6, 5,
-		func(peer *Peer_T, rAddr *net.UDPAddr, event int) {
+		IP: ip,
+		Port: port,
+		RemoteSeeds: rAddrs,
+		NetworkID: networkID,
+		TimeSendLost: 6,
+		Timeout: 5,
+		LifeCycle: func(peer *Peer_T, rAddr *net.UDPAddr, event int) {
 			print(log_info, "on life cycle", EventName[event], ":", rAddr.String())
 		},
-		func(peer *Peer_T, rAddr *net.UDPAddr, key string, body []byte) {
+		Successed: func(peer *Peer_T, rAddr *net.UDPAddr, key string, body []byte) {
 			print(log_info, "Succeeded transmission hash:", key)
 		},
-		func(peer *Peer_T, rAddr *net.UDPAddr, key string, syns []uint32) {
+		Failed: func(peer *Peer_T, rAddr *net.UDPAddr, key string, syns []uint32) {
 			if len(syns) == 0 {
 				print(log_error, "transmission Failed, timeout, hash:", key)
 				return
@@ -106,6 +113,7 @@ func (peer *Peer_T) spliceHeader(event uint16) []byte {
 func (peer *Peer_T)join() {
 	header := peer.spliceHeader(JOIN)
 
+	peer.RemoteSeedsMu.RLock()
 	for seed, _ := range peer.RemoteSeeds {
 		seedAddr, err := net.ResolveUDPAddr("udp", seed)
 		if err != nil {
@@ -120,6 +128,7 @@ func (peer *Peer_T)join() {
 
 		peer.LifeCycle(peer, seedAddr, STARTRUN)
 	}
+	peer.RemoteSeedsMu.RUnlock()
 }
 
 func (peer *Peer_T)touchRequest(rAddr3 *net.UDPAddr) {
@@ -127,6 +136,7 @@ func (peer *Peer_T)touchRequest(rAddr3 *net.UDPAddr) {
 
 	data := append(header, []byte(rAddr3.String())...)
 
+	peer.RemoteSeedsMu.RLock()
 	for seed, _ := range peer.RemoteSeeds {
 		print(log_error, "seed:", seed)
 		if seed == rAddr3.String() {
@@ -144,6 +154,7 @@ func (peer *Peer_T)touchRequest(rAddr3 *net.UDPAddr) {
 			print(log_error, err)
 		}
 	}
+	peer.RemoteSeedsMu.RUnlock()
 }
 
 func (peer *Peer_T)touch(rAddr, rAddr3 *net.UDPAddr) {

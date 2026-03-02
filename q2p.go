@@ -25,17 +25,22 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 		print(log_info, "event: JOIN")
 
 		peer.touchRequest(rAddr)
+		peer.RemoteSeedsMu.Lock()
 		if(len(peer.RemoteSeeds) < connection_num) {
 			peer.RemoteSeeds[rAddr.String()] = false
 		}
+		peer.RemoteSeedsMu.Unlock()
 
 		peer.LifeCycle(peer, rAddr, int(event))
 	case TOUCHREQUEST:
 		print(log_info, "event: TOUCHREQUEST")
+		peer.RemoteSeedsMu.RLock()
 		if(len(peer.RemoteSeeds) >= connection_num) {
 			print(log_warning, "The connection number upper limit has been reached")
+			peer.RemoteSeedsMu.RUnlock()
 			break
 		}
+		peer.RemoteSeedsMu.RUnlock()
 		print(log_info, "rAddr3:", string(data[4:]))
 		rAddr3, err := net.ResolveUDPAddr("udp", string(data[4:]))
 		if err != nil {
@@ -56,10 +61,13 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 		peer.connectRequest(rAddr, rAddr3) // here rAddr is rAddr2
 	case CONNECTREQUEST:
 		print(log_info, "event: CONNECTREQUEST")
+		peer.RemoteSeedsMu.RLock()
 		if(len(peer.RemoteSeeds) >= connection_num) {
 			print(log_warning, "The connection number upper limit has been reached")
+			peer.RemoteSeedsMu.RUnlock()
 			break
 		}
+		peer.RemoteSeedsMu.RUnlock()
 		print(log_info, "rAddr2:", string(data[4:]))
 		rAddr2, err := net.ResolveUDPAddr("udp", string(data[4:]))
 		if err != nil {
@@ -70,14 +78,18 @@ func (peer *Peer_T)networking(rAddr *net.UDPAddr, data []byte) {
 	case CONNECT:
 		print(log_info, "event: CONNECT")
 		print(log_info, "from:", rAddr.String())
+		peer.RemoteSeedsMu.Lock()
 		peer.RemoteSeeds[rAddr.String()] = false
+		peer.RemoteSeedsMu.Unlock()
 
 		peer.connected(rAddr)
 		peer.LifeCycle(peer, rAddr, int(event))
 	case CONNECTED:
 		print(log_info, "event: CONNECTED")
 		print(log_info, "from:", rAddr.String())
+		peer.RemoteSeedsMu.Lock()
 		peer.RemoteSeeds[rAddr.String()] = false
+		peer.RemoteSeedsMu.Unlock()
 		peer.LifeCycle(peer, rAddr, int(event))
 	case CONNECT_FAILED:
 		print(log_error, "event: CONNECT_FAILED")
